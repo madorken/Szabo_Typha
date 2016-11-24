@@ -22,7 +22,7 @@ require( lme4 ) #indicate version # used
 require( nlme )
 require( car )
 
-TEx2 <- read.csv("Data files/Exp2.Total.Com.csv", header = TRUE)
+TEx2 <- read.csv("../data/Exp2.Total.Com.csv", header = TRUE)
 ```
 
 ### Data exploration and model examination
