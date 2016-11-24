@@ -1,0 +1,630 @@
+---
+title: "Experiment 2 - competition experiment"
+author: "Marcel Dorken"
+output: 
+  md_document:
+    variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Analysis of the results of a competition experiment involving *T. latifolia* and *T. x glauca* seedlings
+
+This script relates to the analysis of growth performance from an outdoor common-garden experiment described in Szabo et al. (2017) in which seedlings were grown in intra- and inter-specific pairings in pots and placed in small artificial ponds and subjected to a combination of shading and leaf-litter leachate treatments, each with two levels. 
+
+The data is stored as a .csv file and is located in the folder that accompanies this script. This script shows the steps used to evaluate model assumptions and the analyses and figures presented in the paper.
+
+```{r startup, message=FALSE}
+rm( list = ls())
+require( lme4 ) #indicate version # used  
+require( nlme )
+require( car )
+
+TEx2 <- read.csv("Data files/Exp2.Total.Com.csv", header = TRUE)
+```
+
+### Data exploration and model examination
+
+The first step is data exploration, starting with some dotplots
+
+```{r data exploration 1, echo=FALSE}
+par(mfrow=c(1,1))
+
+TEx2 <- TEx2[order(TEx2$Species),] #sort the data for a nicer dotplot
+
+dotchart(TEx2$Above, #total above-ground biomass
+         groups = factor(TEx2$Species), #groups the dots according to species
+         xlab="Above-ground biomass (g)", 
+         ylab="Species", 
+         main="", 
+         pch=as.numeric(TEx2$Species))
+
+TEx2 <- TEx2[order(TEx2$Shade),] #sort the data for a nicer dotplot
+
+dotchart(TEx2$Above,
+         groups = factor(TEx2$Shade), 
+         xlab="Above-ground biomass (g)", 
+         ylab="Shade", 
+         main="", 
+         pch=as.numeric(TEx2$Shade))
+
+TEx2 <- TEx2[order(TEx2$Leachate),] #sort the data for a nicer dotplot
+
+dotchart(TEx2$Above,
+         groups = factor(TEx2$Leachate), #groups the dots according to species
+         xlab="Above-ground biomass (g)", 
+         ylab="Leachate", 
+         main="", 
+         pch=as.numeric(TEx2$Leachate))
+
+```
+
+There are no clear patterns here for above-ground biomass. The same holds true for the other response variables (below-ground biomass, the number of ramets per plant, and final plant height).
+
+Use a pairplot to examine collinearity and outliers:
+
+```{r data exploration 2, echo=FALSE}
+PlSize <- as.data.frame(cbind(TEx2$Above, TEx2$Below, TEx2$Ramets.F, TEx2$Height.F))
+names(PlSize) <- c("Above", "Below", "N.Ramets", "Height")
+
+panel.hist <- function(x, ...) #function used in pairs() call below to insert histograms along the diagonal, see ?pairs
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col = "grey", ...)
+}
+
+pairs(PlSize, panel=panel.smooth, bg= "light blue", 
+      diag.panel = panel.hist, upper.panel = NULL)
+
+```
+
+No evidence for outliers and data show clear allometric patterns.
+
+### Above-ground biomass
+
+```{r data exploration agb, echo = FALSE}
+
+par(mfrow=c(2,2))
+
+boxplot(Above ~ factor(Species), data=TEx2, main = "Species",
+        ylab="Above-ground biomass (g)", xlab="Species")
+
+boxplot(Above ~ factor(Competitor), data=TEx2, main = "Competitor ID",
+        ylab="Above-ground biomass (g)", xlab="Competitor ID")
+
+boxplot(Above ~ factor(Shade), data=TEx2, main = "Shade",
+        ylab="Above-ground biomass (g)", xlab="Shade")
+
+boxplot(Above ~ factor(Leachate), data=TEx2, main = "Leachate",
+        ylab="Above-ground biomass (g)", xlab="Leachate")
+
+```
+
+### Below-ground biomass
+
+```{r data exploration bgb, echo = FALSE}
+
+par(mfrow=c(2,2))
+
+boxplot(Below ~ factor(Species), data=TEx2, main = "Species",
+        ylab="Below-ground biomass (g)", xlab="Species")
+
+boxplot(Below ~ factor(Competitor), data=TEx2, main = "Competitor ID",
+        ylab="Below-ground biomass (g)", xlab="Competitor ID")
+
+boxplot(Below ~ factor(Shade), data=TEx2, main = "Shade",
+        ylab="Below-ground biomass (g)", xlab="Shade")
+
+boxplot(Below ~ factor(Leachate), data=TEx2, main = "Leachate",
+        ylab="Below-ground biomass (g)", xlab="Leachate")
+
+```
+
+### Plant height
+
+```{r data exploration ph, echo = FALSE}
+
+par(mfrow=c(2,2))
+
+boxplot(Height.F ~ factor(Species), data=TEx2, main = "Species",
+        ylab="Final plant height (cm)", xlab="Species")
+
+boxplot(Height.F ~ factor(Competitor), data=TEx2, main = "Competitor ID",
+        ylab="Final plant height (cm)", xlab="Competitor ID")
+
+boxplot(Height.F ~ factor(Shade), data=TEx2, main = "Shade",
+        ylab="Final plant height (cm)", xlab="Shade")
+
+boxplot(Height.F ~ factor(Leachate), data=TEx2, main = "Leachate",
+        ylab="Final plant height (cm)", xlab="Leachate")
+
+```
+
+
+### Number of ramets
+
+```{r data exploration nr, echo = FALSE}
+
+par(mfrow=c(2,2))
+
+boxplot(Ramets.F ~ factor(Species), data=TEx2, main = "Species",
+        ylab="Number of ramets", xlab="Species")
+
+boxplot(Ramets.F ~ factor(Competitor), data=TEx2, main = "Competitor ID",
+        ylab="Number of ramets", xlab="Competitor ID")
+
+boxplot(Ramets.F ~ factor(Shade), data=TEx2, main = "Shade",
+        ylab="Number of ramets", xlab="Shade")
+
+boxplot(Ramets.F ~ factor(Leachate), data=TEx2, main = "Leachate",
+        ylab="Number of ramets", xlab="Leachate")
+
+```
+
+Again, there are no clear patterns that emerge from this, but also no clear signs of outliers
+
+### Random effects test for above-ground biomass
+
+Run a linear model and test for the importance of the random effect (Pond). Note that pot nested within pond should also be included, but there are too many levels of this effect to sensibly analyse and plot it. 
+
+```{r random effects tests agb, echo=FALSE}
+
+AB <- TEx2$Above
+
+Form <- formula(AB ~ Species * Shade * Leachate * Competitor)
+M.gls <- gls(Form, data=TEx2)
+M.lme <- lme(Form, random =~1|Pond/Pot, data=TEx2, method = "REML")
+anova(M.gls, M.lme) #AIC is a higher for the mixed model; random effect may not be needed but should perhaps still be invcluded if it affects DF estimation for some of the fixed effects... 
+
+
+```
+
+```{r random effects graphics agb, echo=FALSE}
+
+M.lm <- lm(Form, data = TEx2)
+par(mfrow=c(2,2))
+E <- resid(M.lm) 
+Fi <- fitted(M.lm)
+plot(Fi, E, xlab="Fitted values", ylab = "Residuals")
+boxplot(E ~ Species, data=TEx2, main = "Species") # some heterogeneity of residuals among species levels
+boxplot(E ~ Shade, data=TEx2, main = "Shade")  
+boxplot(E ~ Leachate, data=TEx2, main = "Leachate"); # boxplot(E ~ Competitor, data=TEx2, main = "Competitor")
+
+par(mfrow=c(1,1), mar=c(5,2,2,1)+0.1) #reset graphical parameters
+boxplot(E ~ Pond, data=TEx2, axes=FALSE, ylim = c(-4,6))
+abline(0,0); axis(2)
+text(1:nlevels(TEx2$Pond), -3.4, levels(TEx2$Pond), cex=0.75, srt=90)
+```
+
+* No evidence for heterogeneity of x or for heteroscedasticity of residuals between levels of the fixed effects
+* No evidence from pattern of residuals for each pond that random effects are needed; but they will be important in setting error dfs for the models that follow...
+
+
+## Model simplification & validation - linear mixed model
+### Above-ground biomass
+```{r model simplification agb, echo=FALSE}
+
+M1A.0 <- lme(Form, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M1A.1 <- update(M1A.0, .~. -Species:Shade:Leachate:Competitor)
+anova(M1A.0, M1A.1) # remove the 4-way term
+
+Form2 <- formula(Above ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor + 
+                   Shade * Leachate * Competitor)
+M2A.0 <- lme(Form2, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M2A.1 <- update(M2A.0, .~. -Species:Shade:Leachate)
+M2A.2 <- update(M2A.0, .~. -Species:Shade:Competitor)
+M2A.3 <- update(M2A.0, .~. -Species:Leachate:Competitor)
+M2A.4 <- update(M2A.0, .~. -Shade:Leachate:Competitor) # least significant remove it
+
+Form3 <- formula(Above ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor)
+M3A.0 <- lme(Form3, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M3A.1 <- update(M3A.0, .~. -Species:Shade:Leachate)
+M3A.2 <- update(M3A.0, .~. -Species:Shade:Competitor)
+M3A.3 <- update(M3A.0, .~. -Species:Leachate:Competitor) #remove this one
+
+Form4 <- formula(Above ~ Species * Shade *  Leachate + 
+                   Species * Shade * Competitor + Leachate * Competitor)
+M4A.0 <- lme(Form4, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M4A.1 <- update(M4A.0, .~. -Species:Shade:Leachate)
+M4A.2 <- update(M4A.0, .~. -Species:Shade:Competitor) #remove
+
+Form5 <- formula(Above ~ Species * Shade * Leachate + Species * Competitor + Shade * Competitor + Leachate * Competitor)
+M5A.0 <- lme(Form5, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M5A.1 <- update(M5A.0, .~. -Species:Shade:Leachate) # remove
+
+Form6 <- formula(Above ~ Species * Shade + Species * Leachate + Species * Competitor + Shade * Leachate + Shade * Competitor + Leachate * Competitor)
+M6A.0 <- lme(Form6, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M6A.1 <- update(M6A.0, .~. -Species:Shade) 
+M6A.2 <- update(M6A.0, .~. -Species:Leachate) 
+M6A.3 <- update(M6A.0, .~. -Species:Competitor) 
+M6A.4 <- update(M6A.0, .~. -Shade:Leachate) 
+M6A.5 <- update(M6A.0, .~. -Shade:Competitor) 
+M6A.6 <- update(M6A.0, .~. -Leachate:Competitor) # remove
+
+Form7 <- formula(Above ~ Species * Shade + Species * Leachate + Species * Competitor + Shade * Leachate + Shade * Competitor)
+M7A.0 <- lme(Form7, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M7A.1 <- update(M7A.0, .~. -Species:Shade) 
+M7A.2 <- update(M7A.0, .~. -Species:Leachate) 
+M7A.3 <- update(M7A.0, .~. -Species:Competitor) 
+M7A.4 <- update(M7A.0, .~. -Shade:Leachate) 
+M7A.5 <- update(M7A.0, .~. -Shade:Competitor) # remove
+
+Form8 <- formula(Above ~ Species * Shade + Species * Leachate + Species * Competitor + Shade * Leachate)
+M8A.0 <- lme(Form8, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M8A.1 <- update(M8A.0, .~. -Species:Shade) 
+M8A.2 <- update(M8A.0, .~. -Species:Leachate)# remove
+M8A.3 <- update(M8A.0, .~. -Species:Competitor) 
+M8A.4 <- update(M8A.0, .~. -Shade:Leachate) 
+
+Form9 <- formula(Above ~ Species * Shade + Species * Competitor + Shade * Leachate)
+M9A.0 <- lme(Form9, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M9A.1 <- update(M9A.0, .~. -Species:Shade) 
+M9A.2 <- update(M9A.0, .~. -Species:Competitor) 
+M9A.3 <- update(M9A.0, .~. -Shade:Leachate) #remove
+
+Form10 <- formula(Above ~ Species * Shade + Species * Competitor + Leachate)
+M10A.0 <- lme(Form10, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M10A.1 <- update(M10A.0, .~. -Species:Shade)# remove
+M10A.2 <- update(M10A.0, .~. -Species:Competitor) 
+
+Form11 <- formula(Above ~ Species * Competitor + Shade + Leachate)
+M11A.0 <- lme(Form11, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M11A.1 <- update(M11A.0, .~. -Species:Competitor) # remove
+
+Form12 <- formula(Above ~ Species + Competitor + Shade + Leachate)
+M12A.0 <- lme(Form12, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M12A.1 <- update(M12A.0, .~. -Species)
+M12A.2 <- update(M12A.0, .~. -Shade)
+M12A.3 <- update(M12A.0, .~. -Leachate)
+M12A.4 <- update(M12A.0, .~. -Competitor)
+```
+
+```{r type III tests agb}
+anova(M12A.0, M12A.1)
+anova(M12A.0, M12A.2)
+anova(M12A.0, M12A.3)
+anova(M12A.0, M12A.4)
+
+```
+
+####Final model for above-ground biomass that includes all main effects
+```{r final model agb}
+
+MA.final <- lme(Form12, random = ~1|Pond/Pot, data = TEx2, method = "REML")
+Anova(MA.final, type="III") #note there are no interaction terms so Type 2 and Type 3 give the same results
+
+```
+
+###Below-ground biomasss
+```{r model simplification bgb, echo=FALSE}
+
+Form <- formula(Below ~ Species * Shade * Leachate * Competitor)
+
+M1B.0 <- lme(Form, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M1B.1 <- update(M1B.0, .~. -Species:Shade:Leachate:Competitor)
+anova(M1B.0, M1B.1) # remove the 4-way term
+
+Form2 <- formula(Below ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor + 
+                   Shade * Leachate * Competitor)
+M2B.0 <- lme(Form2, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M2B.1 <- update(M2B.0, .~. -Species:Shade:Leachate)
+M2B.2 <- update(M2B.0, .~. -Species:Shade:Competitor)
+M2B.3 <- update(M2B.0, .~. -Species:Leachate:Competitor) #remove
+M2B.4 <- update(M2B.0, .~. -Shade:Leachate:Competitor)
+
+Form3 <- formula(Below ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Shade * Leachate * Competitor)
+M3B.0 <- lme(Form3, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M3B.1 <- update(M3B.0, .~. -Species:Shade:Leachate)
+M3B.2 <- update(M3B.0, .~. -Species:Shade:Competitor)
+M3B.3 <- update(M3B.0, .~. -Shade:Leachate:Competitor) #remove
+
+Form4 <- formula(Below ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + Leachate * Competitor)
+M4B.0 <- lme(Form4, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M4B.1 <- update(M4B.0, .~. -Species:Shade:Leachate) # remove
+M4B.2 <- update(M4B.0, .~. -Species:Shade:Competitor)
+
+Form5 <- formula(Below ~ Species * Shade * Competitor + Species * Leachate + Shade * Leachate + Leachate * Competitor)
+M5B.0 <- lme(Form5, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M5B.1 <- update(M5B.0, .~. -Species:Shade:Competitor) # remove
+
+Form6 <- formula(Below ~ Species * Shade + Species * Leachate + Species * Competitor + 
+                   Shade * Leachate + Shade * Competitor + 
+                   Leachate * Competitor)
+M6B.0 <- lme(Form6, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M6B.1 <- update(M6B.0, .~. -Species:Shade)
+M6B.2 <- update(M6B.0, .~. -Species:Leachate)
+M6B.3 <- update(M6B.0, .~. -Species:Competitor)
+M6B.4 <- update(M6B.0, .~. -Shade:Leachate) # remove
+M6B.5 <- update(M6B.0, .~. -Shade:Competitor)
+M6B.6 <- update(M6B.0, .~. -Leachate:Competitor)
+
+Form7 <- formula(Below ~ Species * Shade + Species * Leachate + Species * Competitor + 
+                   Shade * Competitor + 
+                   Leachate * Competitor)
+M7B.0 <- lme(Form7, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M7B.1 <- update(M7B.0, .~. -Species:Shade)
+M7B.2 <- update(M7B.0, .~. -Species:Leachate) #remove
+M7B.3 <- update(M7B.0, .~. -Species:Competitor)
+M7B.4 <- update(M7B.0, .~. -Shade:Competitor)
+M7B.5 <- update(M7B.0, .~. -Leachate:Competitor)
+
+Form8 <- formula(Below ~ Species * Shade + Species * Competitor + 
+                   Shade * Competitor + 
+                   Leachate * Competitor)
+M8B.0 <- lme(Form8, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M8B.1 <- update(M8B.0, .~. -Species:Shade)
+M8B.2 <- update(M8B.0, .~. -Species:Competitor) #remove
+M8B.3 <- update(M8B.0, .~. -Shade:Competitor)
+M8B.4 <- update(M8B.0, .~. -Leachate:Competitor)
+
+Form9 <- formula(Below ~ Species * Shade + 
+                   Shade * Competitor + 
+                   Leachate * Competitor)
+M9B.0 <- lme(Form9, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M9B.1 <- update(M9B.0, .~. -Species:Shade) #remove
+M9B.2 <- update(M9B.0, .~. -Shade:Competitor)
+M9B.3 <- update(M9B.0, .~. -Leachate:Competitor)
+
+Form10 <- formula(Below ~ Species + Shade * Competitor + 
+                   Leachate * Competitor)
+M10B.0 <- lme(Form10, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M10B.1 <- update(M10B.0, .~. -Shade:Competitor) #remove
+M10B.2 <- update(M10B.0, .~. -Leachate:Competitor)
+
+Form11 <- formula(Below ~ Species + Shade + 
+                   Leachate * Competitor)
+M11B.0 <- lme(Form11, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M11B.1 <- update(M11B.0, .~. -Leachate:Competitor) #remove
+
+Form12 <- formula(Below ~ Species + Shade + Leachate + Competitor)
+M12B.0 <- lme(Form12, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M12B.1 <- update(M12B.0, .~. -Species)
+M12B.2 <- update(M12B.0, .~. -Shade)
+M12B.3 <- update(M12B.0, .~. -Leachate)
+M12B.4 <- update(M12B.0, .~. -Competitor)
+
+```
+
+```{r type III tests bgb}
+anova(M12B.0, M12B.1)
+anova(M12B.0, M12B.2)
+anova(M12B.0, M12B.3)
+anova(M12B.0, M12B.4)
+```
+
+####Final model for below-ground biomass that includes all main effects
+```{r final model bgb}
+
+MB.final <- lme(Form12, random = ~1|Pond/Pot, data = TEx2, method = "REML")
+Anova(MB.final, type="III") #note there are no interaction terms so Type 2 and Type 3 give the same results
+
+```
+
+###Plant Height
+```{r model simplification ph, echo=FALSE}
+
+Form <- formula(Height.F ~ Species * Shade * Leachate * Competitor)
+
+M1H.0 <- lme(Form, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M1H.1 <- update(M1H.0, .~. -Species:Shade:Leachate:Competitor)
+anova(M1H.0, M1H.1) # remove the 4-way term
+
+Form2 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor + 
+                   Shade * Leachate * Competitor)
+M2H.0 <- lme(Form2, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M2H.1 <- update(M2H.0, .~. -Species:Shade:Leachate)
+M2H.2 <- update(M2H.0, .~. -Species:Shade:Competitor)
+M2H.3 <- update(M2H.0, .~. -Species:Leachate:Competitor) #remove
+M2H.4 <- update(M2H.0, .~. -Shade:Leachate:Competitor)
+
+Form3 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Shade * Leachate * Competitor)
+M3H.0 <- lme(Form3, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M3H.1 <- update(M3H.0, .~. -Species:Shade:Leachate)
+M3H.2 <- update(M3H.0, .~. -Species:Shade:Competitor) #remove
+M3H.3 <- update(M3H.0, .~. -Shade:Leachate:Competitor)
+
+Form4 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Shade * Leachate * Competitor +
+                   Species * Competitor)
+M4H.0 <- lme(Form4, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M4H.1 <- update(M4H.0, .~. -Species:Shade:Leachate)
+M4H.2 <- update(M4H.0, .~. -Shade:Leachate:Competitor) #remove
+
+Form5 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Species * Competitor +
+                   Shade * Competitor +
+                   Leachate * Competitor)
+M5H.0 <- lme(Form5, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M5H.1 <- update(M5H.0, .~. -Species:Shade:Leachate) #term is significant (ugh!)
+
+Form6 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Species * Competitor +
+                   Shade * Competitor +
+                   Leachate * Competitor)
+M6H.0 <- lme(Form6, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M6H.1 <- update(M6H.0, .~. -Species:Competitor) 
+M6H.2 <- update(M6H.0, .~. -Shade:Competitor)  #remove
+M6H.3 <- update(M6H.0, .~. -Leachate:Competitor) 
+
+Form7 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Species * Competitor +
+                   Leachate * Competitor)
+M7H.0 <- lme(Form7, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M7H.1 <- update(M7H.0, .~. -Species:Competitor)  #remove
+M7H.2 <- update(M7H.0, .~. -Leachate:Competitor) 
+
+Form8 <- formula(Height.F ~ Species * Shade * Leachate + 
+                   Leachate * Competitor)
+M8H.0 <- lme(Form8, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M8H.1 <- update(M8H.0, .~. -Leachate:Competitor) #remove
+
+Form9 <- formula(Height.F ~ Species * Shade * Leachate + Competitor)
+M9H.0 <- lme(Form9, random = ~1|Pond/Pot, data = TEx2, method = "ML")
+M9H.1 <- update(M9H.0, .~. -Species:Shade:Leachate)
+
+```
+
+
+####Final model for plant height that includes all main effects
+```{r final model ph}
+
+MH.final <- lme(Form9, random = ~1|Pond/Pot, data = TEx2, method = "REML")
+Anova(MH.final, type="III") #type III anova test for the presence of main effects after other main effects and their interactions. However, main effects need to be interpreted with caution, if at all, given that the interaction is 3-way!
+```
+
+```{r plot ph, echo=FALSE}
+par(mar=c(5,5,4,1))
+boxplot(Height.F ~ Species + Shade + Leachate, data=TEx2, 
+        boxwex=0.45, xaxt = 'n',
+        col=c("green", "green4"),
+        at = c(1,1.5,2.5,3,4.5,5,6,6.5),
+        ylab = "Plant height (cm)") 
+#text(c(1,1.5,2.5,3,4.5,5,6,6.5), c(20,20,30,30,35,35,35,35), c("G", "L"))
+mtext(side = 1, at = c(1,1.5,2.5,3,4.5,5,6,6.5), text = c("G", "L"), line = 0.5)
+mtext(side = 1, at = c(1.25, 2.75, 4.75, 6.25), text = c("Unshaded", "Shaded"), line = 2)
+mtext(side = 1, at = c(2,5.5), text = c("No Leachate", "Leachate added"), line = 3.5)
+
+```
+
+
+###Ramet Production
+```{r model simplification nr, echo=FALSE}
+
+NRam <- TEx2$Ramets.F
+
+M1R.0 <- glmer(NRam ~ Species * Shade * Leachate * Competitor + (1|Pond/Pot), data = TEx2, family = "poisson")
+M1R.1 <- update(M1R.0, .~. -Species:Shade:Leachate:Competitor)
+anova(M1R.0, M1R.1) # remove the 4-way term
+
+M2R.0 <- glmer(NRam ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor + 
+                   Shade * Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M2R.1 <- update(M2R.0, .~. -Species:Shade:Leachate)
+M2R.2 <- update(M2R.0, .~. -Species:Shade:Competitor)
+M2R.3 <- update(M2R.0, .~. -Species:Leachate:Competitor)
+M2R.4 <- update(M2R.0, .~. -Shade:Leachate:Competitor) #remove
+
+M3R.0 <- glmer(NRam ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                   Species * Leachate * Competitor + 
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M3R.1 <- update(M3R.0, .~. -Species:Shade:Leachate)
+M3R.2 <- update(M3R.0, .~. -Species:Shade:Competitor)
+M3R.3 <- update(M3R.0, .~. -Species:Leachate:Competitor) # remove
+
+M4R.0 <- glmer(NRam ~ Species * Shade * Leachate + 
+                   Species * Shade * Competitor + 
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M4R.1 <- update(M4R.0, .~. -Species:Shade:Leachate)
+M4R.2 <- update(M4R.0, .~. -Species:Shade:Competitor) # remove
+
+M5R.0 <- glmer(NRam ~ Species * Shade * Leachate +
+                 Species * Competitor +
+                 Shade * Competitor +
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M5R.1 <- update(M5R.0, .~. -Species:Shade:Leachate) # remove
+
+M6R.0 <- glmer(NRam ~ Species * Shade +
+                 Species * Leachate +
+                 Species * Competitor +
+                 Shade * Leachate +
+                 Shade * Competitor +
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M6R.1 <- update(M6R.0, .~. -Species:Shade) 
+M6R.2 <- update(M6R.0, .~. -Species:Leachate) # remove
+M6R.3 <- update(M6R.0, .~. -Species:Competitor)
+M6R.4 <- update(M6R.0, .~. -Shade:Leachate)
+M6R.5 <- update(M6R.0, .~. -Shade:Competitor)
+M6R.6 <- update(M6R.0, .~. -Leachate:Competitor)
+
+M7R.0 <- glmer(NRam ~ Species * Shade +
+                 Species * Competitor +
+                 Shade * Leachate +
+                 Shade * Competitor +
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M7R.1 <- update(M7R.0, .~. -Species:Shade) # remove
+M7R.2 <- update(M7R.0, .~. -Species:Competitor)
+M7R.3 <- update(M7R.0, .~. -Shade:Leachate)
+M7R.4 <- update(M7R.0, .~. -Shade:Competitor)
+M7R.5 <- update(M7R.0, .~. -Leachate:Competitor)
+
+M8R.0 <- glmer(NRam ~ Species * Competitor +
+                 Shade * Leachate +
+                 Shade * Competitor +
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M8R.1 <- update(M8R.0, .~. -Species:Competitor)
+M8R.2 <- update(M8R.0, .~. -Shade:Leachate)
+M8R.3 <- update(M8R.0, .~. -Shade:Competitor) # remove
+M8R.4 <- update(M8R.0, .~. -Leachate:Competitor)
+
+M9R.0 <- glmer(NRam ~ Species * Competitor +
+                 Shade * Leachate +
+                 Leachate * Competitor +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M9R.1 <- update(M9R.0, .~. -Species:Competitor)
+M9R.2 <- update(M9R.0, .~. -Shade:Leachate) #remove
+M9R.3 <- update(M9R.0, .~. -Leachate:Competitor)
+
+M10R.0 <- glmer(NRam ~ Species * Competitor +
+                 Leachate * Competitor +
+                  Shade +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M10R.1 <- update(M10R.0, .~. -Species:Competitor)
+M10R.2 <- update(M10R.0, .~. -Leachate:Competitor) # remove
+
+M11R.0 <- glmer(NRam ~ Species * Competitor +
+                 Shade + Leachate +
+                 (1|Pond/Pot), data = TEx2, family = "poisson")
+M11R.1 <- update(M11R.0, .~. -Species:Competitor) # remove
+
+M12R.0 <- glmer(NRam ~ Species + Shade + Leachate + Competitor + (1|Pond/Pot), data = TEx2, family = "poisson")
+M12R.1 <- update(M12R.0, .~. -Species)
+M12R.2 <- update(M12R.0, .~. -Shade)
+M12R.3 <- update(M12R.0, .~. -Leachate)
+M12R.4 <- update(M12R.0, .~. -Competitor)
+
+```
+
+
+####Final model for ramet production that includes all main effects
+```{r final model nr}
+
+MR.final <- glmer(NRam ~ Species + Shade + Leachate + Competitor + (1|Pond/Pot), data = TEx2, family = "poisson")
+Anova(MR.final, type="III") 
+# n.b. these tests are identical to "anova(M12R.0, M12R.1)" calls 
+
+```
+
+### Main Results
+* There were no effects of competition on any components of growth perfromance
+* The shading treatment affected plant height, as was shown in the other outdoor experiment, BUT
+* The three-way interaction between species, shading, and leachate for plant height makes the effect of shade a little difficult to interpret
+  + my reading of this result is that the shading effect was the main driver of plant height, but there were some slight differences between species that depended on the leachate treatment
+  + in general, plants were taller in shaded ponds but this effect was weak for latifolia in the absence of leachate
+  + overall, I would question the biological significance of this three-way interaction in spite of statistical significance
