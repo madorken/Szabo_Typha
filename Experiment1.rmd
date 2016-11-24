@@ -223,7 +223,7 @@ M4.1 <- update(M4.0, .~. -Species:Shade)
 anova(M4.0, M4.1) #final model needs to include the species x shade interaction 
 ```
 
-```{r final model, message=FALSE}
+```{r final model abg, message=FALSE}
 #re-run the model using REML
 
 
@@ -246,7 +246,7 @@ boxplot(E4 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
 So, the model indicates that latifolia got substantially larger in the shade, more so than the other species. Also, as we have found previously, it looks like glauca was larger than the other species- the parameter value for glauce is ~2 times higher than for latifolia.
 
 The next step is to plot the interaction.
-```{r interation plot - aboveground biomass}
+```{r interaction plot - aboveground biomass}
 
 par(op)
 par(mar=c(4,4,2,2))
@@ -267,7 +267,7 @@ Median above-ground biomass decreased for *T. angustifolia* and *T. x glauca*, b
 All that was just for one response variable (above-ground biomass). The procedure needs to be repeated for the other response variables of interest (below-ground biomass, number of ramets and plant height).
 
 ### Below-ground biomass
-```{r model simiplifcation}
+```{r model simiplifcation bgb}
 
 Form <- formula(log(BGB) ~ Species * Shade * Leachate)
 
@@ -321,14 +321,14 @@ MB7.1 <- update(MB7.0, .~. -Species)
 anova(MB7.0, MB7.1) #the species term is significant
 ```
 
-```{r final model, message=FALSE}
+```{r final model bgb, message=FALSE}
 
 MB5.final <- lme(Form5, random = ~1|Pond, data = TEx1, method = "REML")
 summary(MB5.final)
 Anova(MB5.final, Type = "III")
 ```
 
-```{r model assumptions, message=FALSE}
+```{r model assumptions bgb, message=FALSE}
 #the next step is model validation
 op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
 EB5 <- resid(MB5.final, type = "normalized")
@@ -343,7 +343,7 @@ boxplot(EB5 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
 This time the model indicates that both *T. latifolia* and *T. x glauca* were significantly larger than *T. angustifolia* and this effect was independent of the shade or leachate treatments, neither of which affected patterns of below-ground biomass.
 
 The next step is to plot the result using boxplots.
-```{r plot final model}
+```{r plot final model bgb}
 
 par(op)
 par(mfrow=c(1,1), mar=c(4,4,2,2))
@@ -357,7 +357,7 @@ boxplot(log(BGB) ~ Species, data=TEx1, boxwex=0.5,
 
 
 ### Number of Ramets
-```{r model simplification}
+```{r model simplification nr}
 
 MR1.0 <- glmer(NRam ~ Species * Shade * Leachate + (1|Pond), data=TEx1, family = "poisson")
 MR1.1 <- update(MR1.0, .~. -Species:Shade:Leachate)
@@ -383,14 +383,14 @@ anova(MR5.0, MR5.1) #species:shade is significant; keep it in the model
 
 ```
 
-```{r final model, message=FALSE}
+```{r final model nr, message=FALSE}
 MR4.final <-glmer(NRam ~ Species * Shade + Leachate + (1|Pond), family = "poisson", data = TEx1)
 summary(MR4.final)
 Anova(MR4.final, Type = "III")
 
 ```
 
-```{r model assupmtions, message=FALSE}
+```{r model assupmtions nr, message=FALSE}
 op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
 ER4 <- resid(MR4.final, type = "pearson")
 FR4 <- fitted(MR4.final)
@@ -419,7 +419,7 @@ mtext(side = 1, at = c(1,1.8,2.6,4.5,5.3,6.1), text = c("TA", "TG", "TL"), line 
 
 
 ### Plant height
-```{r model simplification}
+```{r model simplification ph}
 
 Form <- formula(log(Ht) ~ Species * Shade * Leachate)
 
@@ -461,12 +461,12 @@ anova(MH7.0, MH7.1)
 MH4.final <- lme(Form5, random = ~1|Pond, data = TEx1, method = "REML")
 ```
 
-```{r final model, message=FALSE}
+```{r final model ph, message=FALSE}
 summary(MH4.final)
 Anova(MH4.final, Type = "III")
 ```
 
-```{r model assumptions, message=FALSE}
+```{r model assumptions ph, message=FALSE}
 #the next step is model validation
 op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
 EH4 <- resid(MH4.final, type = "normalized")
@@ -482,7 +482,7 @@ boxplot(EH4 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
 As for below-ground biomass, the model indicates that only the species effect was significant. However, in this case *T. x glauca* plants were significantly taller than all other plants independent of the shade or leachate treatments, neither of which affected patterns of plant height.
 
 The next step is to plot the result using boxplots.
-```{r plot the final model}
+```{r plot the final model ph}
 
 par(op)
 par(mfrow=c(1,1), mar=c(4,4,2,2))
