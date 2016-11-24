@@ -1,7 +1,10 @@
 ---
 title: "Experiment 1 - cattail seedling growth in a common garden experiment"
 author: "Marcel Dorken"
-output: html_document
+output: 
+  md_document:
+    variant: markdown_github
+    
 ---
   
 #Cattail seedling growth in a common garden experiment (Szabo *et al.* 2017)
@@ -19,7 +22,7 @@ require( lme4 ) # version 1.1.12
 require( nlme ) # version 3.1-128
 require( car )
 
-TEx1 <- read.csv("Exp1.Corrected.csv", header=T) #reads data from *T*ypha *Ex*periment *1* 
+TEx1 <- read.csv("../Data files/Exp1.Corrected.csv", header=T) #reads data from *T*ypha *Ex*periment *1* 
 TEx1 <- subset(TEx1, Above>0 & Below>0 & Height.F>0) # remove 0 data points 
 
 ```

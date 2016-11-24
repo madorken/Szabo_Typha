@@ -1,7 +1,9 @@
 ---
 title: "Experiment 3 - seed germination"
 author: "Marcel Dorken"
-output: html_document
+output: 
+  md_document:
+    variant: markdown_github
 ---
 
 # Analysis of seed-germination success among cattail species in response to shading and leachate (Szabo et al. 2017)
@@ -24,7 +26,7 @@ require( lme4 ) # version 1.1.12
 require( nlme ) # version 3.1-128
 require( car )
 
-TEx3 <- read.csv("Exp3.Total.csv", header=T) #reads data from *T*ypha *Ex*periment *3* 
+TEx3 <- read.csv("../Data files/Exp3.Total.csv", header=T) #reads data from *T*ypha *Ex*periment *3* 
 
 ```
 
