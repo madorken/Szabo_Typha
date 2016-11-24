@@ -1,0 +1,504 @@
+---
+title: "Experiment 1 - cattail seedling growth in a common garden experiment"
+author: "Marcel Dorken"
+output: html_document
+---
+  
+#Cattail seedling growth in a common garden experiment (Szabo *et al.* 2017)
+
+This script relates to data analyses for the common-garden experiment described in Szabo et al. 2017. The experiment involved the growth of seedling cattails (*Typha angustifolia*, *Typha latifolia*, and *T. x glauca*) in 20 small replicate ponds at Trent University, Peterborough, ON. For analyses of other experiments in Szabo et al. 2017, see of other associatedd scripts.
+
+The data is stored as a .csv file and is located in the folder that accompanies this script. This script shows the steps used to evaluate model assumptions and the analyses and figures presented in the paper.
+
+This first block loads all libraries and data used in the analyses.
+
+```{r startup, message=FALSE}
+rm( list=ls())
+
+require( lme4 ) # version 1.1.12
+require( nlme ) # version 3.1-128
+require( car )
+
+TEx1 <- read.csv("Exp1.Corrected.csv", header=T) #reads data from *T*ypha *Ex*periment *1* 
+TEx1 <- subset(TEx1, Above>0 & Below>0 & Height.F>0) # remove 0 data points 
+
+```
+
+
+Now some data exploration following Zuur *et al.* (2010) Mixed Effects Models and Extensions in Ecology with R.
+
+Start with dot plots:
+
+```{r data and dotcharts, echo=FALSE}
+TEx1 <- TEx1[order(TEx1$Species),] #sort the data for a nicer dotplot
+
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+
+dotchart(TEx1$Above, #Final above-ground biomass (g)
+         groups = factor(TEx1$Species), #groups the dots according to species
+         xlab="Above-ground biomass (g)", 
+         ylab="Species", 
+         main="", 
+         pch=as.numeric(TEx1$Species))
+
+dotchart(TEx1$Below, #Final below-ground biomass (g)
+         groups = factor(TEx1$Species), #groups the dots according to species
+         xlab="Below-ground biomass (g)", 
+         ylab="Species", 
+         main="", 
+         pch=as.numeric(TEx1$Species))
+
+dotchart(TEx1$Ramets.T, #Total number of ramets produced
+         groups = factor(TEx1$Species), #groups the dots according to species
+         xlab="Number of ramets", 
+         ylab="Species", 
+         main="", 
+         pch=as.numeric(TEx1$Species))
+
+dotchart(TEx1$Height.F, #Final plant height - height of the tallest ramet per pot at the end of the experiment
+         groups = factor(TEx1$Species), #groups the dots according to species
+         xlab="Plant height (cm)", 
+         ylab="Species", 
+         main="", 
+         pch=as.numeric(TEx1$Species))
+
+
+```
+
+In terms of above- and below-ground biomass the dot plot suggests that *T. angustifolia* plants *might* have been smaller than the other species. *T. latifolia* and *T. x glauca* seem fairly similar to each other in terms of their size. There doesn't appear to be much going on for the other variables,and note that below-ground biomass is strongly related to above-ground biomass (see below).
+
+Then a pairplot to examine collinearity and outliers:
+
+```{r biplots, echo=FALSE}
+PlSize <- as.data.frame(cbind(TEx1$Above, TEx1$Below, TEx1$Ramets.T, TEx1$Height.F))
+names(PlSize) <- c("Above", "Below", "N.Ramets", "Height")
+
+panel.hist <- function(x, ...) #function used in pairs() call below to insert histograms along the diagonal, see ?pairs
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(usr[1:2], 0, 1.5) )
+    h <- hist(x, plot = FALSE)
+    breaks <- h$breaks; nB <- length(breaks)
+    y <- h$counts; y <- y/max(y)
+    rect(breaks[-nB], 0, breaks[-1], y, col = "grey", ...)
+}
+
+pairs(PlSize, panel=panel.smooth, bg= "light blue", 
+      diag.panel = panel.hist, upper.panel = NULL)
+
+```
+
+Now for some box plots:
+
+```{r boxplots, echo = FALSE}
+par(mfrow=c(2,2))
+boxplot(log(Above) ~ factor(Species), data=TEx1, main = "Above-ground biomass",
+        ylab="log(above-ground mass)", xlab="Species")
+
+boxplot(log(Below) ~ factor(Species), data=TEx1, main = "Below-ground biomass",
+        ylab="log(below-ground mass)", xlab="Species")
+
+boxplot(log(Ramets.T) ~ factor(Species), data=TEx1, main = "N ramets",
+        ylab="N ramets", xlab="Species")
+
+boxplot(log(Height.F) ~ factor(Species), data=TEx1, main = "Final height",
+        ylab="log(height)", xlab="Species")
+
+
+```
+
+The plots further suggests that *T. angustifolia* plants were smaller than plants of the other two species, particularly in terms of biomass. 
+
+Now for some basic linear models that include all the effects of interest
+
+```{r basic linear models}
+
+AGB <- TEx1$Above
+BGB <- TEx1$Below
+NRam <- TEx1$Ramets.T
+Ht <- TEx1$Height.F 
+
+#Above-ground biomass
+AGB.lm <- lm(log(AGB) ~ Species * Shade * Leachate, data = TEx1)
+par(mfrow=c(2,2))
+plot(AGB.lm, add.smooth = FALSE, which=1) # no pattern here, assumption of homogeneity seems ok
+
+EA <- resid(AGB.lm) 
+hist(EA, xlab="Residuals", main="")
+boxplot(EA ~ Species, data=TEx1, main = "Species") # but no heterogeneity of residuals among species levels
+boxplot(EA ~ Shade, data=TEx1, main = "Shade") # or shade levels ; boxplot(E ~ Leachate, data=TEx1) # there is a bit of a difference in the spread of residuals for the leachate treatment, but not much
+
+#Below-ground biomass
+BGB.lm <- lm(log(BGB) ~ Species * Shade * Leachate, data = TEx1)
+plot(BGB.lm, add.smooth = FALSE, which=1) # no pattern here, assumption of homogeneity seems ok
+EB <- resid(BGB.lm) 
+hist(EB, xlab="Residuals", main="")
+boxplot(EB ~ Species, data=TEx1, main = "Species") # but no heterogeneity of residuals among species levels
+boxplot(EB ~ Shade, data=TEx1, main = "Shade") # or shade levels ; boxplot(E ~ Leachate, data=TEx1) # there is a bit of a difference in the spread of 
+
+#Nramets
+NR.glm <- glm(Ramets.T ~ Species * Shade * Leachate, data = TEx1, family = "poisson")
+plot(NR.glm, add.smooth = FALSE, which = 1)
+ER <- resid(NR.glm) 
+hist(ER, xlab="Residuals", main="")
+boxplot(ER ~ Species, data=TEx1, main = "Species") # but no heterogeneity of residuals among species levels
+boxplot(ER ~ Shade, data=TEx1, main = "Shade") # or shade levels ; boxplot(E ~ Leachate, data=TEx1) # there is a bit of a difference in the spread of 
+
+#Plant height
+Ht.lm <- lm(log(Ht) ~ Species * Shade * Leachate, data = TEx1)
+plot(Ht.lm, add.smooth = FALSE, which=1) # some evidence for heterogeneity, will watch this during model selection
+EH <- resid(Ht.lm) 
+hist(EH, xlab="Residuals", main="")
+boxplot(EH ~ Species, data=TEx1, main = "Species") # but no heterogeneity of residuals among species levels
+boxplot(EH ~ Shade, data=TEx1, main = "Shade") # or shade levels ; boxplot(E ~ Leachate, data=TEx1) # there is a bit of a difference in the spread of 
+
+```
+
+Some evidence for heterogeneity unless biomass data are log-transformed and for plant height. Check for heterogeneity among ponds. This is done for above-ground biomass. It is needed as a random effect here, and will include it for all analyses.
+
+```{r random effect boxplot}
+
+par(mfrow=c(1,1), mar=c(4,2,2,1)+0.1) #reset graphical parameters
+boxplot(EA ~ Pond, data=TEx1, axes=FALSE, ylim=c(-5.5,3))
+abline(0,0); axis(2)
+text(1:nlevels(TEx1$Pond), -4.7, levels(TEx1$Pond), cex=0.75, srt=90)
+
+```
+
+The residuals span 0 for all ponds, but are skewed up or down for roughly half of them. Aside from any other considerations, this supports the use of "Pond" as a random effect in any statistical modeling. The next step is to compare models with and without including "Ponds" as a random effect.
+
+
+```{r random effect test}
+
+Form <- formula(log(AGB) ~ Species * Shade * Leachate)
+M.gls <- gls(Form, data=TEx1)
+M.lme <- lme(Form, random =~1|Pond, data=TEx1, method = "REML")
+anova(M.gls, M.lme)
+
+```
+
+Clearly we need to include Ponds as a random effect in any modelling: we have a substantially lower AIC for the model with the random effect and the fits for the two models are significantly different.
+
+Now we should check how well the model meets its assumptions. 
+
+```{r mixed model assumptions}
+
+E2 <- resid(M.lme, type = "normalized")
+F2 <- fitted(M.lme)
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+MyYlab <- "Residuals"
+plot(F2, E2, xlab="Fitted values", ylab=MyYlab) # no pattern in the residuals, which is reassuring
+boxplot(E2 ~ Species, data=TEx1, main = "Species", ylab=MyYlab) # these look ok too
+boxplot(E2 ~ Shade, data=TEx1, main = "Shade Treatment", ylab=MyYlab)
+boxplot(E2 ~ Leachate, data=TEx1, main = "Leachate Treatment", ylab=MyYlab)
+
+```
+
+Model assumptions appear to have been met; there is no strong heterogeneity in X and no apparent heteroscedasticity between levels of the fixed effects. The thing to do now is to simplify the model and optimize the structure of the model in terms of its fixed effects. At the moment there is a three-way interaction, which would be difficult to interpret if it were significant. Better to remove any terms that are not needed.
+
+###Above-ground biomass
+```{r model simplification}
+M1.0 <- lme(Form, random = ~1|Pond, method = "ML", data=TEx1)
+M1.1 <- update(M1.0, .~. - Species:Shade:Leachate) # drop the third-order interaction
+anova(M1.0, M1.1) #test that the 3-order interaction is not significant (it's not)
+
+Form2 <- formula(log(AGB) ~ Species * Shade + Species * Leachate + Shade * Leachate)
+M2.0 <- lme(Form2, random = ~1|Pond, data=TEx1, method = "ML")
+
+# drop the least significant interaction term and redo the model
+M2.1 <- update(M2.0, .~. -Species:Leachate) #this is the least significant interactionl; drop it
+M2.2 <- update(M2.0, .~. -Shade:Leachate)
+M2.3 <- update(M2.0, .~. -Species:Shade)
+
+Form3 <- formula(log(AGB) ~ Species * Shade + Shade * Leachate)
+M3.0 <- lme(Form3, random = ~1|Pond, data=TEx1, method = "ML")
+
+# drop the least significant interaction term and redo the model
+M3.1 <- update(M3.0, .~. -Shade:Leachate) #drop this one
+M3.2 <- update(M3.0, .~. -Species:Shade)
+
+Form4 <- formula(log(AGB) ~ Species * Shade + Leachate)
+M4.0 <- lme(Form4, random = ~1|Pond, data = TEx1, method = "ML")
+M4.1 <- update(M4.0, .~. -Species:Shade)
+anova(M4.0, M4.1) #final model needs to include the species x shade interaction 
+```
+
+```{r final model, message=FALSE}
+#re-run the model using REML
+
+
+M4.final <- lme(Form4, random = ~1|Pond, data = TEx1, method = "REML")
+summary(M4.final)
+Anova(M4.final, type = "III")
+
+#the next step is model validation
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+E4 <- resid(M4.final, type = "normalized")
+F4 <- fitted(M4.final) 
+plot(F4, E4, xlab = "Fitted values", ylab = MyYlab)
+boxplot(E4 ~ Species, data = TEx1, main = "Species", ylab = MyYlab)
+boxplot(E4 ~ Shade, data = TEx1, main = "Shade", ylab = MyYlab)
+boxplot(E4 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
+
+
+```
+
+So, the model indicates that latifolia got substantially larger in the shade, more so than the other species. Also, as we have found previously, it looks like glauca was larger than the other species- the parameter value for glauce is ~2 times higher than for latifolia.
+
+The next step is to plot the interaction.
+```{r interation plot - aboveground biomass}
+
+par(op)
+par(mar=c(4,4,2,2))
+boxplot(log(AGB) ~ Species + Shade, data=TEx1, boxwex=0.6,
+        at=c(1,1.8,2.6, 4.5,5.3,6.1), xaxt='n',
+        col=c("greenyellow", "green", "green4"),
+        ylab = "log(above-ground biomass)")
+mtext(side = 1, at = c(1.8, 5.3), text = c("Unshaded", "Shaded"), line = 2.5)
+mtext(side = 1, at = c(1,1.8,2.6,4.5,5.3,6.1), text = c("TA", "TG", "TL"), line = 1)
+
+
+
+
+```
+
+Median above-ground biomass decreased for *T. angustifolia* and *T. x glauca*, but increased for *T. latifolia*, resulting in a significant species:shade interaction term.  
+
+All that was just for one response variable (above-ground biomass). The procedure needs to be repeated for the other response variables of interest (below-ground biomass, number of ramets and plant height).
+
+### Below-ground biomass
+```{r model simiplifcation}
+
+Form <- formula(log(BGB) ~ Species * Shade * Leachate)
+
+MB1.0 <- lme(Form, random = ~1|Pond, method = "ML", data=TEx1)
+MB1.1 <- update(MB1.0, .~. - Species:Shade:Leachate) # test to see whether we can drop the third-order interaction
+anova(MB1.0, MB1.1) #test that the 3-order interaction is not significant (it's not)
+
+Form2 <- formula(log(BGB) ~ Species * Shade + Species * Leachate + Shade * Leachate)
+MB2.0 <- lme(Form2, random = ~1|Pond, data=TEx1, method = "ML")
+
+# drop the least significant interaction term and redo the model
+MB2.1 <- update(MB2.0, .~. -Species:Leachate) #this is the least significant interactionl; drop it
+MB2.2 <- update(MB2.0, .~. -Shade:Leachate)
+MB2.3 <- update(MB2.0, .~. -Species:Shade)
+
+Form3 <- formula(log(BGB) ~ Species * Shade + Shade * Leachate)
+MB3.0 <- lme(Form3, random = ~1|Pond, data=TEx1, method = "ML")
+
+# drop the least significant interaction term and redo the model
+MB3.1 <- update(MB3.0, .~. -Shade:Leachate) #drop this one
+MB3.2 <- update(MB3.0, .~. -Species:Shade)
+
+Form4 <- formula(log(BGB) ~ Species * Shade + Leachate)
+MB4.0 <- lme(Form4, random = ~1|Pond, data = TEx1, method = "ML")
+
+#see if the last 2nd order interaction can be dropped from the model
+
+MB4.1 <- update(MB4.0, .~. -Species:Shade)
+anova(MB4.0, MB4.1) #it can, drop the last 2nd order interaction; 
+
+Form5 <- formula(log(BGB) ~ Species + Shade + Leachate)
+MB5.0 <- lme(Form5, random = ~1|Pond, data = TEx1, method = "ML")
+
+#final test to see whether the shade:species interaction can be dropped, but it looks like that won't be possible
+MB5.1 <- update(MB5.0, .~. -Leachate)
+MB5.2 <- update(MB5.0, .~. -Shade)
+MB5.3 <- update(MB5.0, .~. -Species)
+anova(MB5.0, MB5.3) # the shade treatment is least significant
+
+Form6 <- formula(log(BGB) ~ Species + Leachate)
+MB6.0 <- lme(Form6, random = ~1|Pond, data = TEx1, method = "ML")
+
+MB6.1 <- update(MB6.0, .~. -Leachate)
+MB6.2 <- update(MB6.0, .~. -Species)
+anova(MB6.0, MB6.1) # the leachate treatment is least significant
+
+Form7 <- formula(log(BGB) ~ Species)
+MB7.0 <- lme(Form5, random = ~1|Pond, data = TEx1, method = "ML")
+
+MB7.1 <- update(MB7.0, .~. -Species)
+anova(MB7.0, MB7.1) #the species term is significant
+```
+
+```{r final model, message=FALSE}
+
+MB5.final <- lme(Form5, random = ~1|Pond, data = TEx1, method = "REML")
+summary(MB5.final)
+Anova(MB5.final, Type = "III")
+```
+
+```{r model assumptions, message=FALSE}
+#the next step is model validation
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+EB5 <- resid(MB5.final, type = "normalized")
+FB5 <- fitted(MB5.final) 
+plot(FB5, EB5, xlab = "Fitted values", ylab = MyYlab)
+boxplot(EB5 ~ Species, data = TEx1, main = "Species", ylab = MyYlab)
+boxplot(EB5 ~ Shade, data = TEx1, main = "Shade", ylab = MyYlab)
+boxplot(EB5 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
+
+```
+
+This time the model indicates that both *T. latifolia* and *T. x glauca* were significantly larger than *T. angustifolia* and this effect was independent of the shade or leachate treatments, neither of which affected patterns of below-ground biomass.
+
+The next step is to plot the result using boxplots.
+```{r plot final model}
+
+par(op)
+par(mfrow=c(1,1), mar=c(4,4,2,2))
+boxplot(log(BGB) ~ Species, data=TEx1, boxwex=0.5, 
+        col=c("greenyellow", "green", "green4"), 
+        xlab="Species", 
+        ylab = "log(below-ground biomass)") 
+
+
+```
+
+
+### Number of Ramets
+```{r model simplification}
+
+MR1.0 <- glmer(NRam ~ Species * Shade * Leachate + (1|Pond), data=TEx1, family = "poisson")
+MR1.1 <- update(MR1.0, .~. -Species:Shade:Leachate)
+anova(MR1.0, MR1.1) # drop the 3-way interaction
+
+MR2.0 <- glmer(NRam ~ Species*Shade + Species*Leachate + Shade*Leachate + (1|Pond), data = TEx1, family = "poisson")
+MR2.1 <- update(MR2.0, .~. -Species:Shade)
+MR2.2 <- update(MR2.0, .~. -Species:Leachate) #drop this one
+MR2.3 <- update(MR2.0, .~. -Shade:Leachate)
+
+
+MR3.0 <- glmer(NRam ~ Species*Shade + Shade*Leachate + (1|Pond), data = TEx1, family = "poisson")
+MR3.1 <- update(MR3.0, .~. -Species:Shade)
+MR3.2 <- update(MR3.0, .~. -Shade:Leachate) #drop this one
+
+MR4.0 <- glmer(NRam ~ Species*Shade + Leachate + (1|Pond), family = "poisson", data = TEx1)
+MR4.1 <- update(MR4.0, .~. -Species:Shade)
+MR4.2 <- update(MR4.0, .~. -Leachate) #drop this one
+
+MR5.0 <- glmer(NRam ~ Species * Shade + (1|Pond), data = TEx1, family = "poisson")
+MR5.1 <- update(MR5.0, .~. -Species:Shade)
+anova(MR5.0, MR5.1) #species:shade is significant; keep it in the model
+
+```
+
+```{r final model, message=FALSE}
+MR4.final <-glmer(NRam ~ Species * Shade + Leachate + (1|Pond), family = "poisson", data = TEx1)
+summary(MR4.final)
+Anova(MR4.final, Type = "III")
+
+```
+
+```{r model assupmtions, message=FALSE}
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+ER4 <- resid(MR4.final, type = "pearson")
+FR4 <- fitted(MR4.final)
+plot(FR4, ER4, xlab = "Fitted values", ylab = MyYlab)
+boxplot(ER4 ~ Species, data = TEx1, main = "Species", ylab = MyYlab)
+boxplot(ER4 ~ Shade, data = TEx1, main = "Shade", ylab = MyYlab)
+boxplot(ER4 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
+
+```
+
+The analysis indicates that plants tended to produce fewer ramets in the shade, however, this pattern was reversed for *T. latifolia*, which produced a similar number of ramets across levels of the shade treatment.
+
+The next step is to plot the interaction
+```{r plot the result}
+
+par(op)
+par(mar=c(4,4,2,2))
+boxplot(NRam ~ Species + Shade, data=TEx1, boxwex=0.6, 
+        col=c("greenyellow", "green", "green4"), at=c(1,1.8,2.6, 4.5,5.3,6.1),
+        xaxt='n', ylab = "Number of ramets")
+mtext(side = 1, at = c(1.8, 5.3), text = c("No Leachate", "Leachate added"), line = 2.5)
+mtext(side = 1, at = c(1,1.8,2.6,4.5,5.3,6.1), text = c("TA", "TG", "TL"), line = 1)
+
+
+```
+
+
+### Plant height
+```{r model simplification}
+
+Form <- formula(log(Ht) ~ Species * Shade * Leachate)
+
+MH1.0 <- lme(Form, random = ~1|Pond, method = "ML", data=TEx1)
+MH1.1 <- update(MH1.0, .~. - Species:Shade:Leachate) # test to see whether we can drop the third-order interaction
+anova(MH1.0, MH1.1) #test that the 3-order interaction is not significant (it's not)
+
+Form2 <- formula(log(Ht) ~ Species * Shade + Species * Leachate + Shade * Leachate)
+MH2.0 <- lme(Form2, random = ~1|Pond, data=TEx1, method = "ML")
+MH2.1 <- update(MH2.0, .~. -Species:Shade)
+MH2.2 <- update(MH2.0, .~. -Species:Leachate) #drop this one
+MH2.3 <- update(MH2.0, .~. -Shade:Leachate)
+
+Form3 <- formula(log(Ht) ~ Species * Shade + Shade * Leachate)
+MH3.0 <- lme(Form3, random = ~1|Pond, data = TEx1, method = "ML")
+MH3.1 <- update(MH3.0, .~. -Species:Shade)
+MH3.2 <- update(MH3.0, .~. -Shade:Leachate) #drop this one
+
+Form4 <- formula(log(Ht) ~ Species * Shade + Leachate)
+MH4.0 <- lme(Form4, random = ~1|Pond, data = TEx1, method = "ML")
+MH4.1 <- update(MH4.0, .~. -Species:Shade)
+
+Form5 <- formula(log(Ht) ~ Species + Shade + Leachate)
+MH5.0 <- lme(Form5, random = ~1|Pond, data = TEx1, method = "ML")
+MH5.1 <- update(MH5.0, .~. -Species)
+MH5.2 <- update(MH5.0, .~. -Shade) #drop this one
+MH5.3 <- update(MH5.0, .~. -Leachate)
+
+Form6 <- formula(log(Ht) ~ Species + Leachate)
+MH6.0 <- lme(Form6, random = ~1|Pond, data = TEx1, method = "ML")
+MH6.1 <- update(MH6.0, .~. -Species)
+MH6.2 <- update(MH6.0, .~. -Leachate) #drop this one
+
+Form7 <- formula(log(Ht) ~ Species)
+MH7.0 <- lme(Form7, random = ~1|Pond, data = TEx1, method = "ML")
+MH7.1 <- update(MH7.0, .~. -Species)
+anova(MH7.0, MH7.1)
+
+MH4.final <- lme(Form5, random = ~1|Pond, data = TEx1, method = "REML")
+```
+
+```{r final model, message=FALSE}
+summary(MH4.final)
+Anova(MH4.final, Type = "III")
+```
+
+```{r model assumptions, message=FALSE}
+#the next step is model validation
+op <- par(mfrow=c(2,2), mar=c(4,4,3,2))
+EH4 <- resid(MH4.final, type = "normalized")
+FH4 <- fitted(MH4.final) 
+plot(FH4, EH4, xlab = "Fitted values", ylab = MyYlab)
+boxplot(EH4 ~ Species, data = TEx1, main = "Species", ylab = MyYlab)
+boxplot(EH4 ~ Shade, data = TEx1, main = "Shade", ylab = MyYlab)
+boxplot(EH4 ~ Leachate, data = TEx1, main = "Leachate", ylab = MyYlab)
+
+```
+
+
+As for below-ground biomass, the model indicates that only the species effect was significant. However, in this case *T. x glauca* plants were significantly taller than all other plants independent of the shade or leachate treatments, neither of which affected patterns of plant height.
+
+The next step is to plot the result using boxplots.
+```{r plot the final model}
+
+par(op)
+par(mfrow=c(1,1), mar=c(4,4,2,2))
+boxplot(Ht ~ Species, data=TEx1, boxwex=0.5, 
+        col=c("greenyellow", "green", "green4"), 
+        xlab="Species", 
+        ylab = "Plant height (cm)") 
+
+
+```
+
+### Main Results
+
+* There was little evidence for an effect of leachate on established plants.
+* The only consistently significant effect on the measures of plant size was the species effect
+  + *Typha latifolia* and *T. x glauca* tended to outperform *T. angustifolia*
+* *Typha latifolia* tended to respond differently to the shade treatment than the other species
+  + *T. latifolia* appeared to tolerate the shade; while plants of the other species got smaller depending on the measure used it tended to remain the same size (N ramets) or even get bigger (above-ground biomass)
+
